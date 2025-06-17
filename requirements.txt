@@ -1,0 +1,4 @@
+flet>=0.28.3
+websockets>=15.0.1
+python-osc>=1.9.3
+

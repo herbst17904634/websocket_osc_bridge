@@ -127,9 +127,9 @@ tag1:0.5;tag2:0.8;tag3:0.2
 3. OSC受信側でメッセージ確認
 
 ## ライセンス
-
+MIT License
 
 ## 開発者
 herbst17904634
-このプログラムはManus AI Agentを用いて作成しました。
+このプログラムは主にManus AI Agentを用いて作成しました。
 

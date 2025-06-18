@@ -131,5 +131,6 @@ MIT License
 
 ## 開発者
 herbst17904634
+
 このプログラムは主にManus AI Agentを用いて作成しました。
 

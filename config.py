@@ -15,7 +15,7 @@ class Config:
         self.config_file = config_file
         self.tag_channel_map: Dict[str, int] = {}
         self.osc_ip: str = "127.0.0.1"
-        self.osc_port: int = 8080
+        self.osc_port: int = 8000
         self.websocket_port: int = 3031
         self.load_config()
     
@@ -27,7 +27,7 @@ class Config:
                     data = json.load(f)
                     self.tag_channel_map = data.get('tag_channel_map', {})
                     self.osc_ip = data.get('osc_ip', '127.0.0.1')
-                    self.osc_port = data.get('osc_port', 8080)
+                    self.osc_port = data.get('osc_port', 8000)
                     self.websocket_port = data.get('websocket_port', 3031)
                 print(f"設定を読み込みました: {self.config_file}")
             except Exception as e:
@@ -59,7 +59,7 @@ class Config:
             "c": 3
         }
         self.osc_ip = "127.0.0.1"
-        self.osc_port = 8080
+        self.osc_port = 8000
         self.websocket_port = 3031
         self.save_config()
     
@@ -81,7 +81,7 @@ class Config:
         """タグに対応するチャンネル番号を取得"""
         return self.tag_channel_map.get(tag)
     
-    def set_osc_target(self, ip: str, port: int = 8080) -> None:
+    def set_osc_target(self, ip: str, port: int = 8000) -> None:
         """OSC送信先を設定"""
         self.osc_ip = ip
         self.osc_port = port

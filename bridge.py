@@ -50,7 +50,7 @@ class WebSocketOSCBridge:
         elif not self.osc_client.is_connected():
             logging.warning("OSCクライアントが接続されていません")
     
-    def update_osc_target(self, ip: str, port: int = 8080) -> bool:
+    def update_osc_target(self, ip: str, port: int = 8000) -> bool:
         """OSC送信先を更新"""
         self.config.set_osc_target(ip, port)
         return self.osc_client.update_target(ip, port)

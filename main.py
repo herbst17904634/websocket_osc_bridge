@@ -485,7 +485,7 @@ class WebSocketOSCBridgeApp:
 def main():
     """アプリケーション起動"""
     app = WebSocketOSCBridgeApp()
-    ft.app(target=app.main, view=ft.AppView.WEB_BROWSER, port=8080)
+    ft.app(target=app.main, view=ft.AppView.WEB_BROWSER, port=8000)
 
 if __name__ == "__main__":
     main()

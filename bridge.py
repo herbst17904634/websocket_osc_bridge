@@ -97,7 +97,13 @@ class WebSocketOSCBridge:
     async def stop(self) -> None:
         """ブリッジを停止"""
         logging.info("WebSocket to OSC ブリッジを停止します...")
-        await self.websocket_server.stop_server()
+        try:
+            if hasattr(self, 'websocket_server') and self.websocket_server:
+                await self.websocket_server.stop_server()
+        except Exception as e:
+            logging.error(f"ブリッジ停止中にエラーが発生しました: {e}")
+        finally:
+            self.is_running = False
         self.osc_client.disconnect()
         self.is_running = False
 

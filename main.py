@@ -297,13 +297,14 @@ class WebSocketOSCBridgeApp:
             
             success = self.bridge.update_osc_target(ip, port)
             if success:
+                self.bridge.save_config()  # 設定を保存
                 self.log_message(f"OSC送信先更新: {ip}:{port}")
-                self.show_snackbar("OSC設定を更新しました", ft.colors.GREEN_400)
+                self.show_snackbar("OSC設定を更新・保存しました", ft.Colors.GREEN_400)
             else:
-                self.show_snackbar("OSC接続に失敗しました", ft.colors.RED_400)
+                self.show_snackbar("OSC接続に失敗しました", ft.Colors.RED_400)
                 
         except Exception as ex:
-            self.show_snackbar(f"エラー: {ex}", ft.colors.RED_400)
+            self.show_snackbar(f"エラー: {ex}", ft.Colors.RED_400)
     
     def start_bridge(self, e):
         """ブリッジ開始"""
@@ -351,7 +352,7 @@ class WebSocketOSCBridgeApp:
     def test_send(self, e):
         """テスト送信"""
         try:
-            test_data = {"tag1": 0.5, "tag2": 0.8}
+            test_data = {tag: 0.5 for tag in self.bridge.config.tag_channel_map}
             asyncio.run(self.bridge.handle_websocket_message(test_data))
             self.log_message(f"テストメッセージ送信: {test_data}")
             self.show_snackbar("テストメッセージを送信しました", ft.Colors.GREEN_400)

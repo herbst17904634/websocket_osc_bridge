@@ -123,9 +123,7 @@ class WebSocketServer:
                 ping_timeout=30,   # 30秒のタイムアウト
                 close_timeout=30,  # 30秒のクローズタイムアウト
                 max_size=2**20,    # 1MBの最大メッセージサイズ
-                max_queue=1000,    # 1000メッセージのキュー
-                read_limit=2**20,  # 1MBの読み取り制限
-                write_limit=2**20   # 1MBの書き込み制限
+                max_queue=1000     # 1000メッセージのキュー
             )
             self.is_running = True
             logging.info(f"WebSocketサーバー開始: ポート {self.port}")

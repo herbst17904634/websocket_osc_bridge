@@ -46,6 +46,24 @@ python test_app.py
 ft.app(target=main, view=ft.AppView.FLET_APP, port=8000)
 ```
 
+### EXEファイルを実行する場合
+
+[Release](https://github.com/herbst17904634/websocket_osc_bridge/releases)に掲載されているwebsocket_osc_bridge.exeを適当なフォルダに移動して、ターミナルから実行してください。
+起動したターミナルにはコンソールメッセージが表示され、WebブラウザにGUIのページが表示されます。
+
+### コンソール出力
+![コンソール出力](images/console_outputs.png)
+
+### GUIの操作
+
+![GUIスクリーンショット](images/gui_screenshot.png)
+1. 左ペイン`タグ・チャンネル設定`で必要なタグ名を入力、チャンネル番号をプルダウンメニューから選択してし、`+`で`現在の設定`に加えます。
+1. `OSC設定{OSC IPアドレス:OSCポート}`でHaptiraのIPアドレスとポートを入力し`適用`ボタンを押します。
+1. 左ペイン下にある`設定保存`をクリックして設定をファイルに保存します。`設定保存`が見えない場合は左ペインのスクロールバーでスクロールして隠れている部分を表示してください。
+1. `テストを送信`ボタンを押してHaptiraにOSCメッセージを送信して、振動モーターが動くことを確認してください。動かない場合はHaptiraの起動状態、IPアドレス、ポート番号、LAN上のHaptiraにpingが届くなどを確認して、障害を探し、解消してから再度テストを送信してください。
+1. `ブリッジ開始`ボタンを押してWebSocketサーバーを起動します。
+1. [KaniLite(buttplug-lite)](https://github.com/herbst17904634/KaniLite)が受け付ける    WebSocketメッセージ(strenglthのみ)を`ws://localhost:3031`に送るとOSCメッセージがHaptiraに送信されます。テストには弊作[DirectNetVibeTester](https://github.com/herbst17904634/DirectNetVibeTester)などが使えます。
+
 ## WebSocket API
 
 ### エンドポイント

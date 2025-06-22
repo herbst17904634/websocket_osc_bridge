@@ -4,7 +4,8 @@
     "b": 1,
     "c": 3
   },
-  "osc_ip": "127.0.0.1",
+  "osc_ip": "192.168.1.5",
   "osc_port": 8000,
-  "websocket_port": 3031
+  "websocket_port": 3031,
+  "timeout_seconds": 20
 }

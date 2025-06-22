@@ -19,6 +19,40 @@ class WebSocketOSCBridge:
         self.osc_client = OSCClient(self.config.osc_ip, self.config.osc_port)
         self.websocket_server = WebSocketServer(self.config.websocket_port, self.handle_websocket_message)
         self.is_running = False
+        self.last_message_time = 0
+        self.timeout_seconds = self.config.timeout_seconds
+        self.timeout_task = None
+        self.loop = None
+        self.last_values = {}  # 最後に送信した値を保持
+    
+    async def _reset_timeout(self) -> None:
+        """タイムアウトをリセット"""
+        if self.timeout_task:
+            self.timeout_task.cancel()
+        self.timeout_task = asyncio.create_task(self._check_timeout())
+    
+    async def _check_timeout(self) -> None:
+        """タイムアウトチェック"""
+        try:
+            await asyncio.sleep(self.timeout_seconds)
+            # タイムアウト発生時に0を送信
+            if self.last_values:
+                logging.info(f"{self.timeout_seconds}秒間の入力がなかったため、0を送信します")
+                zero_values = {channel: 0.0 for channel in self.last_values}
+                if self.osc_client.is_connected():
+                    # 現在の値を0に更新してから送信
+                    for channel in self.last_values:
+                        self.last_values[channel] = 0.0
+                    self.osc_client.send_multiple_values(zero_values)
+                    logging.debug(f"タイムアウト: 0を送信: {zero_values}")
+                self.last_values.clear()
+        except asyncio.CancelledError:
+            # タスクがキャンセルされた場合は何もしない
+            logging.debug("タイムアウトタスクがキャンセルされました")
+            raise
+        except Exception as e:
+            logging.error(f"タイムアウト処理中にエラーが発生しました: {e}")
+            raise
     
     async def handle_websocket_message(self, data: Dict[str, float]) -> None:
         """
@@ -31,14 +65,24 @@ class WebSocketOSCBridge:
         
         # タグをチャンネルにマッピングしてOSC送信
         channel_values = {}
+        has_non_zero = False
         
         for tag, strength in data.items():
             channel = self.config.get_channel_for_tag(tag)
             if channel is not None:
                 channel_values[channel] = strength
+                self.last_values[channel] = strength  # 最後の値を記録
+                if strength > 0:
+                    has_non_zero = True
                 logging.debug(f"マッピング: {tag} -> チャンネル {channel} = {strength}")
             else:
                 logging.warning(f"未設定のタグ: {tag}")
+        
+        # 0以外の値があればタイマーをリセット
+        if has_non_zero:
+            if self.timeout_task and not self.timeout_task.done():
+                self.timeout_task.cancel()
+            self.timeout_task = asyncio.create_task(self._check_timeout())
         
         # OSCで送信
         if channel_values and self.osc_client.is_connected():
@@ -74,38 +118,68 @@ class WebSocketOSCBridge:
             'websocket_clients': self.websocket_server.get_client_count(),
             'osc_connected': self.osc_client.is_connected(),
             'osc_target': self.config.get_osc_target(),
-            'tag_mappings': self.config.tag_channel_map.copy()
+            'tag_mappings': self.config.tag_channel_map.copy(),
+            'timeout_seconds': self.timeout_seconds
         }
     
     async def start(self) -> None:
         """ブリッジを開始"""
         logging.info("WebSocket to OSC ブリッジを開始します...")
+        self.loop = asyncio.get_event_loop()
+        self.is_running = True
         
         # OSC接続確認
         if not self.osc_client.is_connected():
-            logging.warning("OSCクライアントの接続に失敗しました")
+            logging.info("OSCクライアントが未接続のため再接続を試行します…")
+            if self.osc_client.connect():
+                logging.info("OSCクライアント再接続成功")
+            else:
+                logging.warning("OSCクライアントの接続に失敗しました")
+        
+        # 既存のタイムアウトタスクをクリア
+        if self.timeout_task and not self.timeout_task.done():
+            self.timeout_task.cancel()
         
         # WebSocketサーバー開始
-        self.is_running = True
         try:
             await self.websocket_server.start_server()
+            # 初期タイムアウトタスクを開始
+            self.timeout_task = asyncio.create_task(self._check_timeout())
+            logging.info("タイムアウト監視を開始しました")
         except Exception as e:
             logging.error(f"WebSocketサーバーエラー: {e}")
-        finally:
             self.is_running = False
+            raise
     
     async def stop(self) -> None:
         """ブリッジを停止"""
         logging.info("WebSocket to OSC ブリッジを停止します...")
         try:
+            # タイムアウトタスクをキャンセル
+            if self.timeout_task:
+                self.timeout_task.cancel()
+                try:
+                    await self.timeout_task
+                except asyncio.CancelledError:
+                    pass
+                self.timeout_task = None
+                
+            # WebSocketサーバーを停止
             if hasattr(self, 'websocket_server') and self.websocket_server:
                 await self.websocket_server.stop_server()
+                
+            # 最後に0を送信
+            if self.last_values and self.osc_client.is_connected():
+                zero_values = {channel: 0.0 for channel in self.last_values}
+                self.osc_client.send_multiple_values(zero_values)
+                logging.debug(f"停止時に0を送信: {zero_values}")
+                
         except Exception as e:
             logging.error(f"ブリッジ停止中にエラーが発生しました: {e}")
         finally:
+            self.osc_client.disconnect()
             self.is_running = False
-        self.osc_client.disconnect()
-        self.is_running = False
+            self.last_values.clear()
 
 if __name__ == "__main__":
     # テスト用コード

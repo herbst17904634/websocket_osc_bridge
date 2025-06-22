@@ -5,6 +5,7 @@ WebSocket to OSC Bridge - Flet GUI Application
 """
 
 import flet as ft
+import logging
 import asyncio
 import threading
 import logging
@@ -169,31 +170,52 @@ class WebSocketOSCBridgeApp:
     def create_osc_settings_panel(self):
         """OSC設定パネル作成"""
         self.osc_ip_input = ft.TextField(
-            label="送信先IP",
-            value="127.0.0.1",
-            width=200
+            label="OSC IPアドレス",
+            value=self.bridge.config.osc_ip,
+            width=200,
+            on_submit=self.update_osc_target
         )
-        
         self.osc_port_input = ft.TextField(
-            label="送信先ポート",
-            value="8000",
-            width=100
+            label="OSCポート",
+            value=str(self.bridge.config.osc_port),
+            width=100,
+            on_submit=self.update_osc_target,
+            input_filter=ft.InputFilter(r"^\d+$", allow=True)
         )
         
-        update_button = ft.ElevatedButton(
-            "OSC設定更新",
-            on_click=self.update_osc_settings
+        self.timeout_input = ft.TextField(
+            label="タイムアウト (秒)",
+            value=str(self.bridge.config.timeout_seconds),
+            width=120,
+            on_submit=self.update_timeout,
+            input_filter=ft.InputFilter(r"^\d+$", allow=True)
         )
         
-        return ft.Container(
-            content=ft.Column([
-                ft.Text("OSC送信設定", size=18, weight=ft.FontWeight.BOLD),
-                ft.Row([self.osc_ip_input, self.osc_port_input]),
-                update_button
-            ]),
-            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-            padding=15,
-            border_radius=10
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("OSC設定", size=20, weight=ft.FontWeight.BOLD),
+                    ft.Row([self.osc_ip_input, self.osc_port_input]),
+                    ft.ElevatedButton(
+                        "適用",
+                        on_click=self.update_osc_target,
+                        icon=ft.Icons.SAVE
+                    ),
+                    ft.Divider(height=20),
+                    ft.Text("タイムアウト設定", size=16, weight=ft.FontWeight.BOLD),
+                    ft.Row([
+                        self.timeout_input,
+                        ft.ElevatedButton(
+                            "適用",
+                            on_click=self.update_timeout,
+                            icon=ft.Icons.TIMER
+                        )
+                    ], alignment=ft.MainAxisAlignment.START)
+                ], spacing=10),
+                padding=20
+            ),
+            elevation=2,
+            margin=ft.margin.only(bottom=20)
         )
     
     def create_control_panel(self):
@@ -236,14 +258,15 @@ class WebSocketOSCBridgeApp:
     
     def create_log_panel(self):
         """ログパネル作成"""
-        self.log_text = ft.Text(
-            "ログ出力がここに表示されます...",
-            size=12,
-            selectable=True
-        )
+        # ListView に変更して自動スクロールを有効化
+        # ログを複数行選択コピーできるよう SelectionArea で包む
+        self.log_list = ft.ListView(auto_scroll=True, expand=True, spacing=2)
+        log_selection_area = ft.SelectionArea(content=self.log_list)
+        # 初期メッセージ
+        self.log_list.controls.append(ft.Text("ログ出力がここに表示されます...", size=12, selectable=True))
         
         log_container = ft.Container(
-            content=ft.Column([self.log_text], scroll=ft.ScrollMode.AUTO),
+            content=log_selection_area,
             height=300,
             bgcolor=ft.Colors.BLACK12,
             padding=10,
@@ -251,12 +274,17 @@ class WebSocketOSCBridgeApp:
         )
         
         clear_button = ft.TextButton("ログクリア", on_click=self.clear_log)
+        copy_button = ft.TextButton("全文コピー", on_click=lambda e: self.page.set_clipboard('\n'.join([
+            ctrl.value for ctrl in self.log_list.controls if isinstance(ctrl, ft.Text)
+        ])))
+        clear_button = ft.TextButton("ログクリア", on_click=self.clear_log)
         
         return ft.Container(
             content=ft.Column([
                 ft.Row([
                     ft.Text("ログ出力", size=18, weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
+                    copy_button,
                     clear_button
                 ]),
                 log_container
@@ -289,36 +317,59 @@ class WebSocketOSCBridgeApp:
         except Exception as ex:
             self.show_snackbar(f"エラー: {ex}", ft.colors.RED_400)
     
-    def update_osc_settings(self, e):
-        """OSC設定更新"""
+    def update_osc_target(self, e=None):
+        """OSC送信先を更新"""
         try:
-            ip = self.osc_ip_input.value
+            ip = self.osc_ip_input.value.strip()
             port = int(self.osc_port_input.value)
-            
-            success = self.bridge.update_osc_target(ip, port)
-            if success:
-                self.bridge.save_config()  # 設定を保存
-                self.log_message(f"OSC送信先更新: {ip}:{port}")
-                self.show_snackbar("OSC設定を更新・保存しました", ft.Colors.GREEN_400)
+            if self.bridge.update_osc_target(ip, port):
+                self.show_snackbar(f"OSC送信先を更新しました: {ip}:{port}")
+                self.update_display()
             else:
-                self.show_snackbar("OSC接続に失敗しました", ft.Colors.RED_400)
+                self.show_snackbar("OSC送信先の更新に失敗しました", is_error=True)
+        except ValueError:
+            self.show_snackbar("無効なポート番号です", is_error=True)
+    
+    def update_timeout(self, e=None):
+        """タイムアウト時間を更新"""
+        try:
+            timeout = int(self.timeout_input.value)
+            if timeout < 1:
+                raise ValueError("1以上の値を指定してください")
                 
-        except Exception as ex:
-            self.show_snackbar(f"エラー: {ex}", ft.Colors.RED_400)
+            # ブリッジの設定を更新
+            self.bridge.config.set_timeout_seconds(timeout)
+            self.bridge.timeout_seconds = timeout
+            
+            # 設定を保存
+            self.bridge.config.save_config()
+            
+            self.show_snackbar(f"タイムアウトを {timeout}秒 に設定しました")
+            self.update_display()
+            
+        except ValueError as e:
+            self.show_snackbar(f"無効なタイムアウト値です: {str(e)}", is_error=True)
     
     def start_bridge(self, e):
         """ブリッジ開始"""
         if self.is_bridge_running:
             return
         
+        # 事前にイベントループを作成し参照を保持
+        self.bridge_loop = asyncio.new_event_loop()
+
         def run_bridge():
-            self.bridge_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.bridge_loop)
+            loop = self.bridge_loop
+            asyncio.set_event_loop(loop)
             try:
+                # ブリッジを開始
                 self.bridge_loop.run_until_complete(self.bridge.start())
+                # 以後はイベントループを走らせ続け、タイムアウトタスクなどを処理
+                self.bridge_loop.run_forever()
             except Exception as ex:
                 self.log_message(f"ブリッジエラー: {ex}")
             finally:
+                # 停止指示で run_forever から抜けてきたらループを閉じる
                 self.bridge_loop.close()
         
         self.bridge_thread = threading.Thread(target=run_bridge, daemon=True)
@@ -329,7 +380,8 @@ class WebSocketOSCBridgeApp:
         self.start_button.disabled = True
         self.stop_button.disabled = False
         self.page.update()
-        
+        # インジケーターを即更新
+        self.update_status()
         self.log_message("ブリッジを開始しました")
     
     def stop_bridge(self, e):
@@ -337,8 +389,16 @@ class WebSocketOSCBridgeApp:
         if not self.is_bridge_running:
             return
         
-        if self.bridge_loop:
-            asyncio.run_coroutine_threadsafe(self.bridge.stop(), self.bridge_loop)
+        if not self.bridge_loop:
+            self.log_message("ブリッジ初期化中のため停止できません。数秒後に再度お試しください")
+            return
+
+        if self.bridge_loop and not self.bridge_loop.is_closed():
+            # ブリッジ停止コルーチンを実行
+            fut = asyncio.run_coroutine_threadsafe(self.bridge.stop(), self.bridge_loop)
+            # 停止完了後にイベントループを止める
+            fut.add_done_callback(lambda _:
+                                   self.bridge_loop.call_soon_threadsafe(self.bridge_loop.stop))
         
         self.is_bridge_running = False
         
@@ -348,13 +408,44 @@ class WebSocketOSCBridgeApp:
         self.page.update()
         
         self.log_message("ブリッジを停止しました")
+        # 停止完了後ステータスを更新
+        self.update_status()
     
     def test_send(self, e):
-        """テスト送信"""
+        """テスト送信 - タイムアウトも適用されるようにブリッジのイベントループで実行"""
         try:
             test_data = {tag: 0.5 for tag in self.bridge.config.tag_channel_map}
-            asyncio.run(self.bridge.handle_websocket_message(test_data))
-            self.log_message(f"テストメッセージ送信: {test_data}")
+            # ブリッジが動作中かつイベントループが有効な場合はそのループで送信
+            if (self.is_bridge_running and self.bridge_loop 
+                    and not self.bridge_loop.is_closed() 
+                    and self.bridge_loop.is_running()):
+                try:
+                    fut = asyncio.run_coroutine_threadsafe(
+                        self.bridge.handle_websocket_message(test_data),
+                        self.bridge_loop
+                    )
+                    fut.result()  # エラーを拾うために短時間待機して例外を拾う
+                except Exception as ex:
+                    self.log_message(f"テスト送信エラー: {ex}")
+            else:
+                # ブリッジが動いていない場合: 非同期ループなしで送信し、タイマーで0送信をスケジュール
+                asyncio.run(self.bridge.handle_websocket_message(test_data))
+
+                # 既存のタイマーがあればキャンセル
+                if hasattr(self, 'test_timeout_timer') and self.test_timeout_timer and self.test_timeout_timer.is_alive():
+                    self.test_timeout_timer.cancel()
+
+                def send_zeros_later():
+                    zero_values = {ch: 0.0 for ch in self.bridge.config.tag_channel_map.values()}
+                    if zero_values and self.bridge.osc_client.is_connected():
+                        self.bridge.osc_client.send_multiple_values(zero_values)
+                        logging.info(f"(テスト送信) タイムアウトで0を送信: {zero_values}")
+                        # self.log_message(f"(テスト送信) タイムアウトで0を送信: {zero_values}")
+
+                # 新しいタイマーを保持
+                self.test_timeout_timer = threading.Timer(self.bridge.timeout_seconds, send_zeros_later)
+                self.test_timeout_timer.start()
+            logging.info(f"テストメッセージ送信: {test_data}")
             self.show_snackbar("テストメッセージを送信しました", ft.Colors.GREEN_400)
         except Exception as ex:
             self.show_snackbar(f"テスト送信エラー: {ex}", ft.Colors.RED_400)
@@ -380,25 +471,45 @@ class WebSocketOSCBridgeApp:
     
     def clear_log(self, e):
         """ログクリア"""
-        self.log_text.value = ""
+        self.log_list.controls.clear()
+        self.log_list.controls.append(ft.Text("ログ出力がここに表示されます...", size=12, selectable=True))
         self.page.update()
     
     def update_display(self):
-        """表示更新"""
+        """表示を更新"""
         if not self.bridge:
             return
+            
+        # ステータス表示を更新
+        status = self.bridge.get_status()
+        self.ws_status_chip.label = ft.Text(
+            "WebSocket: " + ("起動中" if status['websocket_running'] else "停止中"),
+            color=ft.Colors.WHITE if status['websocket_running'] else ft.Colors.RED_200
+        )
+        self.osc_status_chip.label = ft.Text(
+            "OSC: " + ("接続済み" if status['osc_connected'] else "未接続"),
+            color=ft.Colors.WHITE if status['osc_connected'] else ft.Colors.RED_200
+        )
+        self.client_count_text.value = f"接続クライアント: {status['websocket_clients']}"
+
+        # UI 更新
+        self.page.update()
         
-        # OSC設定表示更新
-        self.osc_ip_input.value = self.bridge.config.osc_ip
-        self.osc_port_input.value = str(self.bridge.config.osc_port)
+        # ボタンの有効/無効を更新
+        is_running = status['websocket_running']
+        self.start_button.disabled = is_running
+        self.stop_button.disabled = not is_running
         
-        # タグリスト更新
+        # 設定を更新
+        self.osc_ip_input.value = status['osc_target'][0]
+        self.osc_port_input.value = str(status['osc_target'][1])
+        self.timeout_input.value = str(self.bridge.config.timeout_seconds)
+        
+        # タグマッピングリストを更新
         self.update_tag_list()
         
-        # ステータス更新
-        self.update_status()
-        
-        self.page.update()
+        if self.page:
+            self.page.update()
     
     def update_tag_list(self):
         """タグリスト更新"""
@@ -429,7 +540,7 @@ class WebSocketOSCBridgeApp:
         """ステータス更新"""
         status = self.bridge.get_status()
         
-        # WebSocketステータス
+        
         if status['websocket_running']:
             self.ws_status_chip.label.value = "WebSocket: 動作中"
             self.ws_status_chip.bgcolor = ft.Colors.GREEN_100
@@ -451,42 +562,70 @@ class WebSocketOSCBridgeApp:
         
         # クライアント数
         self.client_count_text.value = f"接続数: {status['websocket_clients']}"
+
+        # ページ更新
+        self.page.update()
     
     def log_message(self, message: str):
-        """ログメッセージ追加"""
+        """ログメッセージ追加 (コピー可能)"""
         import datetime
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         log_line = f"[{timestamp}] {message}"
-        
-        if self.log_text.value:
-            self.log_text.value += f"\n{log_line}"
-        else:
-            self.log_text.value = log_line
-        
+        # ListView へ追加し自動スクロール & コピー可能
+        self.log_list.controls.append(ft.Text(log_line, size=12, selectable=True))
         self.page.update()
-    
-    def show_snackbar(self, message: str, color: str):
-        """スナックバー表示"""
-        snackbar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=color
-        )
-        self.page.overlay.append(snackbar)
-        snackbar.open = True
-        self.page.update()
-    
     async def periodic_update(self):
-        """定期更新"""
+        """定期的にステータスと UI を更新"""
         while True:
             await asyncio.sleep(2)
             if self.bridge:
                 self.update_status()
                 self.page.update()
 
+    def show_snackbar(self, message: str, color: str = ft.Colors.GREEN_400):
+        snackbar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()  
+
+class _GuiLogHandler(logging.Handler):
+    """Python logging handler that forwards records to the Flet GUI log panel."""
+    def __init__(self, app_ref):
+        super().__init__()
+        self.app_ref: 'WebSocketOSCBridgeApp' = app_ref
+
+    def emit(self, record: logging.LogRecord):
+        """Forward log record to GUI thread safely."""
+        try:
+            msg = self.format(record)
+            if self.app_ref.page is not None:
+                try:
+                    # If called from non-UI thread, schedule on UI thread
+                    self.app_ref.page.call_from_thread(lambda: self.app_ref.log_message(msg))
+                except Exception:
+                    # Fallback: call directly (may already be on UI thread)
+                    self.app_ref.log_message(msg)
+            else:
+                # Page not ready yet; store or ignore (no GUI to show yet)
+                pass
+        except Exception:
+            # Ignore all errors to avoid disrupting logging flow
+            pass
+
 def main():
     """アプリケーション起動"""
+    # Set up standard logging for console
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+
     app = WebSocketOSCBridgeApp()
-    ft.app(target=app.main, view=ft.AppView.WEB_BROWSER, port=8000)
+    # Add GUI log handler so bridge logs appear in GUI
+    gui_handler = _GuiLogHandler(app)
+    gui_handler.setLevel(logging.INFO)
+    logging.getLogger().addHandler(gui_handler)
+
+    # Using a less common port to avoid conflicts (e.g., OSC default UDP port 8000)
+    ft.app(target=app.main, view=ft.AppView.WEB_BROWSER, port=8550)
 
 if __name__ == "__main__":
     main()

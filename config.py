@@ -17,6 +17,7 @@ class Config:
         self.osc_ip: str = "127.0.0.1"
         self.osc_port: int = 8000
         self.websocket_port: int = 3031
+        self.timeout_seconds: int = 20  # デフォルトタイムアウト20秒
         self.load_config()
     
     def load_config(self) -> None:
@@ -29,6 +30,7 @@ class Config:
                     self.osc_ip = data.get('osc_ip', '127.0.0.1')
                     self.osc_port = data.get('osc_port', 8000)
                     self.websocket_port = data.get('websocket_port', 3031)
+                    self.timeout_seconds = data.get('timeout_seconds', 20)
                 print(f"設定を読み込みました: {self.config_file}")
             except Exception as e:
                 print(f"設定ファイル読み込みエラー: {e}")
@@ -43,7 +45,8 @@ class Config:
                 'tag_channel_map': self.tag_channel_map,
                 'osc_ip': self.osc_ip,
                 'osc_port': self.osc_port,
-                'websocket_port': self.websocket_port
+                'websocket_port': self.websocket_port,
+                'timeout_seconds': self.timeout_seconds
             }
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
@@ -90,6 +93,14 @@ class Config:
     def get_osc_target(self) -> tuple:
         """OSC送信先を取得"""
         return (self.osc_ip, self.osc_port)
+        
+    def set_timeout_seconds(self, seconds: int) -> None:
+        """タイムアウト秒数を設定"""
+        if seconds > 0:
+            self.timeout_seconds = seconds
+            print(f"タイムアウト設定: {seconds}秒")
+        else:
+            raise ValueError("タイムアウト秒数は1以上の値を指定してください")
 
 if __name__ == "__main__":
     # テスト用コード

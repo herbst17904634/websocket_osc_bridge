@@ -80,6 +80,7 @@ class WebSocketOSCBridgeApp:
                     self.create_tag_mapping_panel(),
                     ft.Divider(height=20),
                     self.create_osc_settings_panel(),
+                    self.create_settings_action_panel(),
                 ], scroll=ft.ScrollMode.AUTO),
                 width=400,
                 padding=20
@@ -114,7 +115,7 @@ class WebSocketOSCBridgeApp:
         )
         
         self.osc_status_chip = ft.Chip(
-            label=ft.Text("OSC: 未接続"),
+            label=ft.Text("OSCソケット: 無効"),
             bgcolor=ft.Colors.RED_100,
             color=ft.Colors.RED_800
         )
@@ -156,17 +157,20 @@ class WebSocketOSCBridgeApp:
                 ft.Text("タグ・チャンネル設定", size=18, weight=ft.FontWeight.BOLD),
                 ft.Row([self.tag_input, self.channel_dropdown, add_button]),
                 ft.Text("現在の設定:", size=14, weight=ft.FontWeight.W_500),
-                self.tag_list,
-                ft.Row([
-                    ft.ElevatedButton("設定保存", on_click=self.save_config),
-                    ft.ElevatedButton("設定リロード", on_click=self.reload_config)
-                ])
+                self.tag_list
             ]),
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
             padding=15,
             border_radius=10
         )
     
+    def create_settings_action_panel(self):
+        """共通保存/リロードボタンパネル"""
+        return ft.Row([
+            ft.ElevatedButton("設定保存", on_click=self.save_all_config, icon=ft.Icons.SAVE),
+            ft.ElevatedButton("設定リロード", on_click=self.reload_config, icon=ft.Icons.REFRESH)
+        ])
+
     def create_osc_settings_panel(self):
         """OSC設定パネル作成"""
         self.osc_ip_input = ft.TextField(
@@ -210,8 +214,8 @@ class WebSocketOSCBridgeApp:
                             on_click=self.update_timeout,
                             icon=ft.Icons.TIMER
                         )
-                    ], alignment=ft.MainAxisAlignment.START)
-                ], spacing=10),
+                     ], alignment=ft.MainAxisAlignment.START),
+                 ], spacing=10),
                 padding=20
             ),
             elevation=2,
@@ -459,6 +463,60 @@ class WebSocketOSCBridgeApp:
         except Exception as ex:
             self.show_snackbar(f"保存エラー: {ex}", ft.Colors.RED_400)
     
+    def update_osc_target(self, e):
+        """OSC送信先(IP, Port)を適用"""
+        ip = self.osc_ip_input.value.strip()
+        port_text = self.osc_port_input.value.strip()
+        try:
+            port = int(port_text)
+            if port <= 0 or port > 65535:
+                raise ValueError("ポート番号は1-65535で指定してください")
+            # ブリッジ側を更新
+            success = self.bridge.update_osc_target(ip, port)
+            if success:
+                self.show_snackbar("OSC送信先を更新しました", ft.Colors.GREEN_400)
+            else:
+                self.show_snackbar("OSCソケットの再作成に失敗しました", ft.Colors.RED_400)
+            self.update_status()
+        except ValueError as ex:
+            self.show_snackbar(f"無効なポート番号です: {ex}", ft.Colors.RED_400)
+
+    def update_timeout(self, e):
+        """タイムアウト秒数を適用"""
+        seconds_text = self.timeout_input.value.strip()
+        try:
+            seconds = int(seconds_text)
+            if seconds <= 0:
+                raise ValueError("タイムアウト秒数は1以上を指定してください")
+            self.bridge.timeout_seconds = seconds
+            self.bridge.config.set_timeout_seconds(seconds)
+            self.show_snackbar("タイムアウトを更新しました", ft.Colors.GREEN_400)
+            self.update_status()
+        except ValueError as ex:
+            self.show_snackbar(f"無効な値: {ex}", ft.Colors.RED_400)
+
+    def save_osc_timeout_config(self, e):
+        """OSC IP/Port とタイムアウトをファイルに保存"""
+        try:
+            # 既存の入力検証ロジックを再利用
+            self.update_osc_target(e)
+            self.update_timeout(e)
+            # ブリッジの Config を保存
+            self.bridge.config.save_config()
+            self.show_snackbar("OSC設定とタイムアウトを保存しました", ft.Colors.GREEN_400)
+        except Exception as ex:
+            self.show_snackbar(f"保存失敗: {ex}", ft.Colors.RED_400)
+
+    def save_all_config(self, e):
+        """タグマッピング・OSC・タイムアウトをまとめて保存"""
+        try:
+            # 既存の個別保存ロジックを活用
+            self.save_osc_timeout_config(e)
+            self.save_config(e)
+            self.show_snackbar("すべての設定を保存しました", ft.Colors.GREEN_400)
+        except Exception as ex:
+            self.show_snackbar(f"保存失敗: {ex}", ft.Colors.RED_400)
+
     def reload_config(self, e):
         """設定リロード"""
         try:
@@ -552,11 +610,11 @@ class WebSocketOSCBridgeApp:
         
         # OSCステータス
         if status['osc_connected']:
-            self.osc_status_chip.label.value = "OSC: 接続中"
+            self.osc_status_chip.label.value = "OSCソケット: 有効"
             self.osc_status_chip.bgcolor = ft.Colors.GREEN_100
             self.osc_status_chip.color = ft.Colors.GREEN_800
         else:
-            self.osc_status_chip.label.value = "OSC: 未接続"
+            self.osc_status_chip.label.value = "OSCソケット: 無効"
             self.osc_status_chip.bgcolor = ft.Colors.RED_100
             self.osc_status_chip.color = ft.Colors.RED_800
         

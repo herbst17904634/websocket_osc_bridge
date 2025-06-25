@@ -98,6 +98,29 @@ class WebSocketOSCBridge:
         """OSC送信先を更新"""
         self.config.set_osc_target(ip, port)
         return self.osc_client.update_target(ip, port)
+
+    def set_websocket_port(self, port: int) -> bool:
+        """WebSocket ポートを更新
+
+        Args:
+            port: 新しいポート番号 (1-65535)
+        Returns:
+            True if the port was updated successfully.
+        """
+        try:
+            if port <= 0 or port > 65535:
+                raise ValueError("ポート番号は1-65535で指定してください")
+            # Config とサーバーオブジェクトへ反映
+            self.config.websocket_port = port
+            if self.websocket_server:
+                self.websocket_server.port = port
+            # ファイルへ保存
+            self.config.save_config()
+            logging.info(f"WebSocketポートを {port} に更新しました")
+            return True
+        except Exception as e:
+            logging.error(f"WebSocketポート更新失敗: {e}")
+            return False
     
     def add_tag_mapping(self, tag: str, channel: int) -> None:
         """タグマッピングを追加"""
@@ -119,7 +142,8 @@ class WebSocketOSCBridge:
             'osc_connected': self.osc_client.is_connected(),
             'osc_target': self.config.get_osc_target(),
             'tag_mappings': self.config.tag_channel_map.copy(),
-            'timeout_seconds': self.timeout_seconds
+            'timeout_seconds': self.timeout_seconds,
+            'websocket_port': self.config.websocket_port
         }
     
     async def start(self) -> None:

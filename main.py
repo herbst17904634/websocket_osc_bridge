@@ -32,6 +32,8 @@ class WebSocketOSCBridgeApp:
         self.ws_status_chip: Optional[ft.Chip] = None
         self.osc_status_chip: Optional[ft.Chip] = None
         self.client_count_text: Optional[ft.Text] = None
+        self.ws_port_input: Optional[ft.TextField] = None
+        self.endpoint_text: Optional[ft.Text] = None
         self.log_text: Optional[ft.Text] = None
         self.start_button: Optional[ft.ElevatedButton] = None
         self.stop_button: Optional[ft.ElevatedButton] = None
@@ -57,6 +59,9 @@ class WebSocketOSCBridgeApp:
     
     def build_ui(self):
         """UI構築"""
+        # エンドポイントテキストを先に初期化
+        self.endpoint_text = ft.Text(f"ws://localhost:{self.bridge.config.websocket_port}/haptic", size=12, color=ft.Colors.BLUE_400)
+        
         # ヘッダー
         header = ft.Container(
             content=ft.Row([
@@ -77,9 +82,10 @@ class WebSocketOSCBridgeApp:
             # 左パネル - 設定
             ft.Container(
                 content=ft.Column([
+                    self.create_websocket_setting_pane(),
                     self.create_tag_mapping_panel(),
-                    ft.Divider(height=20),
                     self.create_osc_settings_panel(),
+                    self.create_timeout_setting_pane(),
                     self.create_settings_action_panel(),
                 ], scroll=ft.ScrollMode.AUTO),
                 width=400,
@@ -101,6 +107,9 @@ class WebSocketOSCBridgeApp:
         ], expand=True)
         
         # ページに追加
+
+
+
         self.page.add(
             header,
             main_content
@@ -158,7 +167,7 @@ class WebSocketOSCBridgeApp:
                 ft.Row([self.tag_input, self.channel_dropdown, add_button]),
                 ft.Text("現在の設定:", size=14, weight=ft.FontWeight.W_500),
                 self.tag_list
-            ]),
+            ], spacing=10),
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
             padding=15,
             border_radius=10
@@ -170,6 +179,30 @@ class WebSocketOSCBridgeApp:
             ft.ElevatedButton("設定保存", on_click=self.save_all_config, icon=ft.Icons.SAVE),
             ft.ElevatedButton("設定リロード", on_click=self.reload_config, icon=ft.Icons.REFRESH)
         ])
+
+    def create_websocket_setting_pane(self):
+        """WebSocketポート設定パネル"""
+        self.ws_port_input = ft.TextField(
+            label="WebSocketポート",
+            value=str(self.bridge.config.websocket_port),
+            width=120,
+            on_submit=self.update_ws_port,
+            input_filter=ft.InputFilter(r"^\\d+$", allow=True)
+        )
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("WebSocket設定", size=20, weight=ft.FontWeight.BOLD),
+                    ft.Row([
+                        self.ws_port_input,
+                        ft.ElevatedButton("適用", icon=ft.Icons.SAVE, on_click=self.update_ws_port)
+                    ])
+                ]),
+                padding=20
+            ),
+            elevation=2,
+            margin=ft.margin.only(bottom=20)
+        )
 
     def create_osc_settings_panel(self):
         """OSC設定パネル作成"""
@@ -186,33 +219,16 @@ class WebSocketOSCBridgeApp:
             on_submit=self.update_osc_target,
             input_filter=ft.InputFilter(r"^\d+$", allow=True)
         )
-        
-        self.timeout_input = ft.TextField(
-            label="タイムアウト (秒)",
-            value=str(self.bridge.config.timeout_seconds),
-            width=120,
-            on_submit=self.update_timeout,
-            input_filter=ft.InputFilter(r"^\d+$", allow=True)
-        )
-        
         return ft.Card(
             content=ft.Container(
                 content=ft.Column([
                     ft.Text("OSC設定", size=20, weight=ft.FontWeight.BOLD),
                     ft.Row([self.osc_ip_input, self.osc_port_input]),
-                    ft.ElevatedButton(
-                        "適用",
-                        on_click=self.update_osc_target,
-                        icon=ft.Icons.SAVE
-                    ),
-                    ft.Divider(height=20),
-                    ft.Text("タイムアウト設定", size=16, weight=ft.FontWeight.BOLD),
                     ft.Row([
-                        self.timeout_input,
                         ft.ElevatedButton(
                             "適用",
-                            on_click=self.update_timeout,
-                            icon=ft.Icons.TIMER
+                            on_click=self.update_osc_target,
+                            icon=ft.Icons.SAVE
                         )
                      ], alignment=ft.MainAxisAlignment.START),
                  ], spacing=10),
@@ -222,6 +238,34 @@ class WebSocketOSCBridgeApp:
             margin=ft.margin.only(bottom=20)
         )
     
+    def create_timeout_setting_pane(self):
+        """タイムアウト設定パネル作成"""
+        self.timeout_input = ft.TextField(
+            label="タイムアウト (秒)",
+            value=str(self.bridge.config.timeout_seconds),
+            width=120,
+            on_submit=self.update_timeout,
+            input_filter=ft.InputFilter(r"^\\d+$", allow=True)
+        )
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("タイムアウト設定", size=20, weight=ft.FontWeight.BOLD),
+                    ft.Row([
+                        self.timeout_input,
+                        ft.ElevatedButton(
+                            "適用",
+                            on_click=self.update_timeout,
+                            icon=ft.Icons.SAVE
+                        )
+                     ], alignment=ft.MainAxisAlignment.START),
+                 ], spacing=10),
+                padding=20
+            ),
+            elevation=2,
+            margin=ft.margin.only(bottom=20)
+        )
+
     def create_control_panel(self):
         """制御パネル作成"""
         self.start_button = ft.ElevatedButton(
@@ -253,7 +297,7 @@ class WebSocketOSCBridgeApp:
                 ft.Row([self.start_button, self.stop_button, test_button]),
                 ft.Divider(),
                 ft.Text("WebSocketエンドポイント:", size=14, weight=ft.FontWeight.W_500),
-                ft.SelectionArea(content=ft.Text("ws://localhost:3031/haptic", size=12, color=ft.Colors.BLUE_400))
+                ft.SelectionArea(content=self.endpoint_text)
             ]),
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
             padding=15,
@@ -495,12 +539,30 @@ class WebSocketOSCBridgeApp:
         except ValueError as ex:
             self.show_snackbar(f"無効な値: {ex}", ft.Colors.RED_400)
 
+    def update_ws_port(self, e=None):
+        """WebSocket待受ポートを適用"""
+        try:
+            port_text = self.ws_port_input.value.strip()
+            port = int(port_text)
+            if port <= 0 or port > 65535:
+                raise ValueError("ポート番号は1-65535で指定してください")
+            success = self.bridge.set_websocket_port(port)
+            if success:
+                self.show_snackbar("WebSocketポートを更新しました", ft.Colors.GREEN_400)
+                self.endpoint_text.value = f"ws://localhost:{port}/haptic"
+            else:
+                self.show_snackbar("WebSocketポートの更新に失敗しました", ft.Colors.RED_400)
+            self.update_status()
+        except ValueError as ex:
+            self.show_snackbar(f"無効なポート番号です: {ex}", ft.Colors.RED_400)
+
     def save_osc_timeout_config(self, e):
         """OSC IP/Port とタイムアウトをファイルに保存"""
         try:
             # 既存の入力検証ロジックを再利用
             self.update_osc_target(e)
             self.update_timeout(e)
+            self.update_ws_port(e)
             # ブリッジの Config を保存
             self.bridge.config.save_config()
             self.show_snackbar("OSC設定とタイムアウトを保存しました", ft.Colors.GREEN_400)
@@ -562,6 +624,8 @@ class WebSocketOSCBridgeApp:
         self.osc_ip_input.value = status['osc_target'][0]
         self.osc_port_input.value = str(status['osc_target'][1])
         self.timeout_input.value = str(self.bridge.config.timeout_seconds)
+        self.ws_port_input.value = str(status['websocket_port'])
+        self.endpoint_text.value = f"ws://localhost:{status['websocket_port']}/haptic"
         
         # タグマッピングリストを更新
         self.update_tag_list()

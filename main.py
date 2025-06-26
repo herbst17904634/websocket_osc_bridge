@@ -187,7 +187,7 @@ class WebSocketOSCBridgeApp:
             value=str(self.bridge.config.websocket_port),
             width=120,
             on_submit=self.update_ws_port,
-            input_filter=ft.InputFilter(r"^\\d+$", allow=True)
+            input_filter=ft.InputFilter(r"^\d+$", allow=True)
         )
         return ft.Card(
             content=ft.Container(

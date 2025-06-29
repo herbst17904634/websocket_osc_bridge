@@ -1,7 +1,7 @@
-# WebSocket to OSC Bridge
+# WebSocket to Haptira Bridge
 
 ## 概要
-buttplug-lite互換のWebSocketサーバーでモーター強度を受け取り、OSCプロトコルでHaptiraに送信するPythonアプリケーションです。FletフレームワークによりモダンなWebアプリケーションとして実装されています。
+buttplug-lite互換のWebSocketサーバーでモーター強度を受け取り、OSCプロトコルで[Haptira](https://booth.pm/ja/items/6988916)に送信するPythonアプリケーションです。FletフレームワークによりモダンなWebアプリケーションとして実装されています。
 
 ## 特徴
 - ✅ **モダンなWebUI**: Fletによるレスポンシブなダークテーマ
@@ -48,7 +48,7 @@ ft.app(target=main, view=ft.AppView.FLET_APP, port=8000)
 
 ### EXEファイルを実行する場合
 
-[Release](https://github.com/herbst17904634/websocket_osc_bridge/releases)に掲載されているwebsocket_osc_bridge.exeを適当なフォルダに移動して、ターミナルから実行してください。
+[Release](https://github.com/herbst17904634/ws_haptira_bridge/releases)に掲載されている`ws_haptira_bridge.exe`を適当なフォルダに移動して、ターミナルから実行してください。
 起動したターミナルにはコンソールメッセージが表示され、WebブラウザにGUIのページが表示されます。
 
 ### コンソール出力

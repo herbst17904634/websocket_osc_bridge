@@ -7,12 +7,12 @@ Flet テストアプリケーション
 import flet as ft
 
 def main(page: ft.Page):
-    page.title = "WebSocket to OSC Bridge"
+    page.title = "WS Haptira Bridge"
     page.theme_mode = ft.ThemeMode.DARK
     
     # シンプルなテストUI
     page.add(
-        ft.AppBar(title=ft.Text("WebSocket to OSC Bridge")),
+        ft.AppBar(title=ft.Text("WS Haptira Bridge")),
         ft.Text("Hello, Flet!", size=30),
         ft.ElevatedButton("テストボタン", on_click=lambda e: print("クリックされました"))
     )

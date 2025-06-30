@@ -1,4 +1,4 @@
-# WebSocket to Haptira Bridge
+# WS Haptira Bridge
 
 ## 概要
 buttplug-lite互換のWebSocketサーバーでモーター強度を受け取り、OSCプロトコルで[Haptira](https://booth.pm/ja/items/6988916)に送信するPythonアプリケーションです。FletフレームワークによりモダンなWebアプリケーションとして実装されています。

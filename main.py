@@ -41,7 +41,7 @@ class WebSocketOSCBridgeApp:
     def main(self, page: ft.Page):
         """メインアプリケーション"""
         self.page = page
-        self.page.title = "WebSocket to OSC Bridge"
+        self.page.title = "WS Haptira Bridge"
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.window_width = 1200
         self.page.window_height = 800

@@ -66,7 +66,7 @@ class WebSocketOSCBridgeApp:
         header = ft.Container(
             content=ft.Row([
                 ft.Icon(ft.Icons.SETTINGS_INPUT_ANTENNA, size=40, color=ft.Colors.BLUE_400),
-                ft.Text("WebSocket to OSC Bridge", size=28, weight=ft.FontWeight.BOLD),
+                ft.Text("WS Haptira Bridge", size=28, weight=ft.FontWeight.BOLD),
                 ft.Container(expand=True),
                 self.create_status_indicators()
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
